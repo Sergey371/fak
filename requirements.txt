@@ -1,0 +1,3 @@
+# Python requirements
+meson>=1.2.3
+ninja>=1.11.1
