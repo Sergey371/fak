@@ -1,38 +1,39 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-  "image": "mcr.microsoft.com/devcontainers/base:alpine",
-  "features": {
-    "ghcr.io/devcontainers/features/nix:1": {
-      "multiUser": true,
-      "version": "latest",
-      "extraNixConfig": "experimental-features = nix-command flakes,keep-outputs = true,keep-derivations = true"
-    }
-  },
-  "mounts": [
-    "source=nix-store,target=/nix,type=volume",
-    "source=nix-direnv,target=/home/vscode/.local/share/direnv,type=volume",
-    "source=vs-exts,target=/home/vscode/.vscode-server/extensions,type=volume",
-    "source=vs-exts-in,target=/home/vscode/.vscode-server-insiders/extensions,type=volume"
-  ],
-  "remoteUser": "vscode",
-  "onCreateCommand": {
-    // From: https://github.com/mpscholten/codespaces-ihp/blob/019b66b42a0418ac3ef7a9fcfa306dfe275c4ac6/.devcontainer/devcontainer.json
-    "Setup direnv": "sudo apt install direnv; echo 'eval \"$(direnv hook bash)\"' >> ~/.bashrc",
-    "Fix nix Permissions": "sudo apt install acl; sudo setfacl -k /tmp",
-    "Allow direnv": "mkdir -p ~/.config/direnv; touch ~/.config/direnv/direnv.toml; echo \"[whitelist]\nprefix = ['/workspaces/']\" >> ~/.config/direnv/direnv.toml"
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "Tweag.vscode-nickel"
-      ],
-      "settings": {
-        "terminal.integrated.defaultProfile.linux": "zsh",
-        "terminal.integrated.profiles.linux": {
-          "zsh": {
-            "path": "/home/vscode/.nix-profile/bin/zsh"
-          }
-        }
-      }
-    }
-  }
+	"name": "Python 3",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/devcontainers/python:0-3.11",
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+
+	// Configure tool-specific properties.
+	"customizations": {
+		// Configure properties specific to VS Code.
+		"vscode": {
+			"settings": {},
+			"extensions": [
+				"streetsidesoftware.code-spell-checker"
+			]
+		}
+	},
+	
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [9000],
+
+	// Use 'portsAttributes' to set default properties for specific forwarded ports. 
+	// More info: https://containers.dev/implementors/json_reference/#port-attributes
+	"portsAttributes": {
+		"9000": {
+			"label": "Hello Remote World",
+			"onAutoForward": "notify"
+		}
+	},
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": "pip install --upgrade pip && pip3 install -r requirements.txt"
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
 }
