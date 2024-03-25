@@ -43,6 +43,15 @@ let Matrix = fun mcu => {
   rows | Array (ElementOf mcu.gpios) | default = [],
 } in
 
+let SplitChannel = fun mcu label value =>
+  if std.record.has_field "type" value && value.type == 'uart then
+    std.contract.apply (ElementOf mcu.features) label value
+  else if std.record.has_field "soft_serial_pin" value then
+    std.contract.apply (ElementOf mcu.gpios) label value.soft_serial_pin
+  else
+    std.contract.blame_with_message "Invalid split channel. Only UART or soft serial pin are supported."
+in
+
 let PhysicalKey = fun mcu matrix => {
   type | [| 'direct, 'matrix, 'peripheral |],
   data | match {
@@ -57,23 +66,35 @@ let PhysicalKey = fun mcu matrix => {
   } type
 } in
 
+let EncoderDef = fun mcu => {
+  type | [| 'physical, 'peripheral |],
+  data | match {
+    'physical => {
+      pin_a | ElementOf mcu.gpios,
+      pin_b | ElementOf mcu.gpios,
+      resolution | BoundedInt 1 128,
+    },
+    'peripheral => Uint8,
+  } type
+} in
+
 let KeyboardPeripheralSide = {
   mcu | Mcu,
   matrix | Matrix mcu | default = {},
   keys | Set (PhysicalKey mcu matrix),
-  # TODO: Check that this is a UART feature
-  split.channel | ElementOf mcu.features,
+  encoders | Set (EncoderDef mcu) | default = [],
+  split.channel | SplitChannel mcu,
 } in
 
 let KeyboardCentralSide = {
   mcu | Mcu,
   matrix | Matrix mcu | default = {},
   keys | Set (PhysicalKey mcu matrix),
+  encoders | Set (EncoderDef mcu) | default = [],
   usb_dev | UsbDev,
   debounce_ms | Uint8 | default = DEFAULT_DEBOUNCE_MS,
   split | {
-    # TODO: Check that this is a UART feature
-    channel | ElementOf mcu.features,
+    channel | SplitChannel mcu,
     peripheral | KeyboardPeripheralSide,
   } | optional,
 } in
@@ -95,6 +116,21 @@ let MatrixKey = fun col_pin row_pin direction => {
   PeripheralSideKey = fun periph_key_idx => {
     type = 'peripheral,
     data = periph_key_idx,
+  },
+  PhysicalEncoder = fun a b res => {
+    type = 'physical,
+    data = {
+      pin_a = a,
+      pin_b = b,
+      resolution = res,
+    }
+  },
+  PeripheralSideEncoder = fun periph_encoder_idx => {
+    type = 'peripheral,
+    data = periph_encoder_idx,
+  },
+  SoftSerialPin = fun pin => {
+    soft_serial_pin = pin,
   },
   Keyboard = KeyboardCentralSide,
 }

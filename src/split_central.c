@@ -14,6 +14,9 @@
 #if COMBO_COUNT > 0
 #include "combo.h"
 #endif
+#if ENCODER_COUNT > 0
+#include "encoder.h"
+#endif
 #ifdef MOUSE_KEYS_ENABLE
 #include "mouse.h"
 #endif
@@ -22,6 +25,9 @@
 #endif
 #ifdef CAPS_WORD_ENABLE
 #include "caps_word.h"
+#endif
+#ifdef SPLIT_SOFT_SERIAL_PIN
+#include "soft_serial.h"
 #endif
 
 __xdata __at(XADDR_LAST_TAP_TIMESTAMP) uint16_t last_tap_timestamp = 0;
@@ -44,6 +50,9 @@ __xdata __at(XADDR_REPEAT_KEY + 3) uint8_t applied_repeat_code = 0;
 
 #ifdef SPLIT_ENABLE
 extern __code uint8_t split_periph_key_indices[SPLIT_PERIPH_KEY_COUNT];
+#if SPLIT_PERIPH_ENCODER_COUNT > 0
+extern __code uint8_t split_periph_encoder_indices[SPLIT_PERIPH_ENCODER_COUNT];
+#endif
 #endif
 
 uint16_t get_last_tap_timestamp() {
@@ -454,35 +463,62 @@ void key_state_inform(uint8_t key_idx, uint8_t down) {
 }
 
 #ifdef SPLIT_ENABLE
-static void split_periph_init() {
-    SM0 = 1;
-    SM1 = 0;
-}
+__bit split_periph_did_not_respond;
 
-static void split_periph_scan() {
-    SBUF = SPLIT_MSG_REQUEST_KEYS;
-    TB8 = 0;
-    while (!TI);
+static uint8_t split_periph_req(uint8_t request) {
+    split_periph_did_not_respond = 1;
+#ifdef SPLIT_SOFT_SERIAL_PIN
+    soft_serial_sbuf = request;
+    EA = 0;
+    soft_serial_send();
+    soft_serial_recv();
+    EA = 1;
+    split_periph_did_not_respond = soft_serial_did_not_respond;
+    return soft_serial_sbuf;
+#else
+    SBUF = request;
+    while (!TI) {}
     TI = 0;
     REN = 1;
 
+    request = 0; // Poll 256 times
+    while (!RI) {
+        if (++request == 0) goto exit;
+    }
+    RI = 0;
+    split_periph_did_not_respond = 0;
+exit:
+    REN = 0;
+    return SBUF;
+#endif
+}
+
+static void split_periph_scan() {
     uint8_t i = 0;
-    uint8_t wait_cycles = 0;
 
     for (uint8_t b = 0; b < SPLIT_KEY_COUNT_BYTES; b++) {
-        while (!RI) {
-            if (++wait_cycles == 0) goto exit;
-        }
-        RI = 0;
+        uint8_t resp = split_periph_req(SPLIT_MSG_REQUEST_KEYS + b);
+        if (split_periph_did_not_respond) return;
 
         for (uint8_t bit = 0; bit < 8; bit++) {
-            key_state_inform(split_periph_key_indices[i], (SBUF >> bit) & 1);
+            key_state_inform(split_periph_key_indices[i], (resp >> bit) & 1);
             if (++i == SPLIT_PERIPH_KEY_COUNT) break;
         }
     }
 
-exit:
-    REN = 0;
+#if SPLIT_ENCODER_COUNT_BYTES > 0
+    i = 0;
+
+    for (uint8_t b = 0; b < SPLIT_ENCODER_COUNT_BYTES; b++) {
+        uint8_t resp = split_periph_req(SPLIT_MSG_REQUEST_ENCODERS + b);
+        if (split_periph_did_not_respond) return;
+
+        for (uint8_t j = 0; j < 4; j++) {
+            encoder_scan(split_periph_encoder_indices[i], (resp >> (j * 2)) & 0x03);
+            if (++i == SPLIT_PERIPH_ENCODER_COUNT) break;
+        }
+    }
+#endif
 }
 #endif
 
@@ -492,15 +528,17 @@ void keyboard_init() {
     }
 
     for (uint8_t i = 8; i;) {
-        i--;
-        strong_mods_ref_count[i] = 0;
+        strong_mods_ref_count[--i] = 0;
     }
 
+#ifdef SPLIT_SOFT_SERIAL_PIN
+    soft_serial_init();
+#endif
 #if COMBO_COUNT > 0
     combo_init();
 #endif
-#ifdef SPLIT_ENABLE
-    split_periph_init();
+#if ENCODER_COUNT > 0
+    encoder_init();
 #endif
     key_event_queue_init();
     keyboard_init_user();

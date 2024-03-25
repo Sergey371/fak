@@ -1,20 +1,21 @@
-let { tap, hold, td, combo, encoder, .. } = import "../../fak/keycode.ncl" in
+let { tap, hold, td, combo, macro, .. } = import "../../fak/keycode.ncl" in
 let util = import "../../fak/util_functions.ncl" in
 
 let virtual_keys' = [
-  encoder.cw 0,
-  encoder.ccw 0,
-  encoder.cw 1,
-  encoder.ccw 1,
+  combo.make 30 [12, 13],
+  combo.make 30 [21, 22],
+  combo.make 30 [16, 17],
+  combo.make 30 [20, 29],
 ] in
 
-let key_count = 34 + std.array.length virtual_keys' in
+let key_count = 36 + std.array.length virtual_keys' in
 
 let kc = tap.reg.kc in
 let ks = tap.reg.ks in
 let md = hold.reg.mod in
 let tm = tap.reg.mod in
 let me = tap.custom.media in
+let ms = tap.custom.mouse in
 let MO = hold.reg.layer in
 
 let ki = {
@@ -26,17 +27,18 @@ let ki = {
 } in
 
 let layouts = {
-  QWERTY = "QWERTYUIOPASDFGHJKL;ZXCVBNM,./",
-  DVORAK = "',.PYFGCRLAOEUIDHTNS;QJKXBMWVZ",
-  COLEMAK = "QWFPGJLUY;ARSTDHNEIOZXCVBKM,./",
+  QWERTY = "QWERTYUIOPASDFGHJKL'ZXCVBNM,.-",
+  DVORAK = "',.PYFGCRLAOEUIDHTNS'QJKXBMWVZ",
+  COLEMAK = "QWFPGJLUY'ARSTDHNEIOZXCVBKM,.-",
+  HYPERROLL = "PCLMVXUOYFNSRTD.AEIHBG'WZ-,QJK",
 } in
 
 let make_hrm = fun key_idx =>
   let htb_hrm_base = fun eager => {
-    timeout_ms = 200,
+    timeout_ms = 180,
     quick_tap_ms = 150,
     quick_tap_interrupt_ms = 500,
-    global_quick_tap_ms = 80,
+    # global_quick_tap_ms = 60,
     eager_decision = eager,
   } in
 
@@ -45,8 +47,11 @@ let make_hrm = fun key_idx =>
       ki.tp, ki.tp, ki.tp, ki.tp, ki.tp,    ki.hr, ki.hr, ki.hr, ki.hr, ki.hr,
       ki.tr, ki.tr, ki.tr, ki.tr, ki.tp,    ki.hr, ki.hr, ki.hr, ki.hr, ki.hr,
       ki.tp, ki.tp, ki.tp, ki.tp, ki.tp,    ki.hr, ki.hr, ki.hr, ki.hr, ki.hr,
-                           ki.hp, ki.hp,    ki.hp, ki.hp,
-                           ki.xx, ki.xx, ki.xx, ki.xx,
+                    ki.hp, ki.hp, ki.hp,    ki.hr, ki.hr, ki.hp,
+                           ki.xx,
+                           ki.xx,
+                           ki.xx,
+                           ki.xx,
     ]
   } in
 
@@ -55,8 +60,11 @@ let make_hrm = fun key_idx =>
       ki.hr, ki.hr, ki.hr, ki.hr, ki.hr,    ki.tp, ki.tp, ki.tp, ki.tp, ki.tp,
       ki.hr, ki.hr, ki.hr, ki.hr, ki.hr,    ki.tp, ki.tr, ki.tr, ki.tr, ki.tr,
       ki.hr, ki.hr, ki.hr, ki.hr, ki.hr,    ki.tp, ki.tp, ki.tp, ki.tp, ki.tp,
-                           ki.hp, ki.hp,    ki.hp, ki.hp,
-                           ki.xx, ki.xx, ki.xx, ki.xx,
+                    ki.hp, ki.hp, ki.hp,    ki.hr, ki.hr, ki.hp,
+                           ki.xx,
+                           ki.xx,
+                           ki.xx,
+                           ki.xx,
     ]
   } in
 
@@ -88,17 +96,16 @@ let L' = fun layer =>
 in
 
 let layer_media =
-  let MNP = td.make 200 [ me.NEXT, me.PREV ] in
   L' [
     XXXX,    me.MUTE, me.VOLD, me.VOLU, XXXX,       XXXX,    XXXX,    XXXX,    XXXX,    XXXX,
     XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       XXXX,    XXXX,    XXXX,    XXXX,    XXXX,
     XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       XXXX,    XXXX,    XXXX,    XXXX,    XXXX,
-                               me.PLAY, MNP,        XXXX,    XXXX,
+                      me.PREV, me.PLAY, me.NEXT,    XXXX,    XXXX,    XXXX,
   ]
 in
 
 let htb_media = {
-  timeout_ms = 250,
+  timeout_ms = 500,
   timeout_decision = 'tap,
   global_quick_tap_ms = 80,
   key_interrupts = layer_media
@@ -122,51 +129,93 @@ let cu = {
   NWSP = tm.lgui & kc.PGUP,
   CT =   tm.lctl & kc.TAB,
   CST =  tm.lctl & tm.lsft & kc.TAB,
+  REST = tap.custom.fak.REST,
   BOOT = tap.custom.fak.BOOT,
+  REP = tap.custom.fak.REP,
+  SELW = macro.make [
+    macro.press md.lctl,
+    macro.tap kc.RGHT,
+    macro.tap kc.LEFT,
+    macro.tap (kc.RGHT & tm.lsft),
+    macro.release md.lctl,
+  ],
+  # SELW = macro.make [
+  #   macro.tap kc.H,
+  #   macro.tap kc.E,
+  #   macro.tap kc.J,
+  #   macro.pause_for_release,
+  #   macro.tap kc.SPC,
+  #   macro.tap kc.M,
+  #   macro.tap kc.O,
+  #   macro.tap kc.N,
+  #   macro.tap kc.I,
+  #   macro.tap kc.K,
+  #   macro.tap kc.A,
+  # ]
 } in
 
 let thumb = fun i =>
-  let htb_generic = {
+  let htb_generic_hp = {
     timeout_ms = 200,
-    quick_tap_ms = 150,
+    quick_tap_ms = 50,
+    key_interrupts = std.array.replicate key_count ki.hp,
+  } in
+
+  let htb_generic_hr = {
+    timeout_ms = 200,
+    quick_tap_ms = 50,
     key_interrupts = std.array.replicate key_count ki.hr,
   } in
+  
   [
-    kc.DEL & MO 3 & hold.reg.behavior htb_generic,
-    kc.BSPC & MO 5 & hold.reg.behavior htb_generic,
-    kc.SPC & MO 1 & hold.reg.behavior htb_generic,
-    kc.ESC & MO 4 & hold.reg.behavior htb_generic,
+    kc.DEL & MO 3 & hold.reg.behavior htb_generic_hp,
+    kc.BSPC & MO 5 & hold.reg.behavior htb_generic_hp,
+    td.make 200 [
+      tap.sticky.mod.lsft & md.lsft & hold.reg.behavior htb_generic_hp,
+      md.lctl,
+    ],
+    cu.REP & MO 4 & hold.reg.behavior htb_generic_hr,
+    #hold.reg.layer 2 & tap.sticky.layer 3 & tap.sticky.mod.lsft & hold.reg.behavior htb_generic_hr,
+    kc.SPC & MO 1 & hold.reg.behavior htb_generic_hr,
+    kc.ESC & MO 6 & hold.reg.behavior htb_generic_hp,
   ]
   |> std.array.at i
 in
 
-let keymap = {
+{
   virtual_keys = virtual_keys',
+  mouse.move_speed = 4,
+  mouse.scroll_interval_ms = 20,
   layers = [
-    let base = fun key_idx => (alphas layouts.COLEMAK) |> std.array.at key_idx in
+    let base = fun key_idx => (alphas layouts.QWERTY) |> std.array.at key_idx in
     [
       base 0,  base 1,  base 2,  base 3,  base 4,     base 5,  base 6,  base 7,  base 8,  base 9,
       base 10, base 11, base 12, base 13, base 14,    base 15, base 16, base 17, base 18, base 19,
       base 20, base 21, base 22, base 23, base 24,    base 25, base 26, base 27, base 28, base 29,
-                                 thumb 0, thumb 1,    thumb 2, thumb 3,
+                        thumb 0, thumb 1, thumb 2,    thumb 3, thumb 4, thumb 5,
       # Combo [12, 13]
-      td.make 200 [MO 3, cu.BOOT],
-      XXXX,
-      XXXX,
-      XXXX,
+      td.make 200 [tap.layer.TG 3, cu.REST, cu.BOOT],
+      kc.TAB,
+      # macro.make (([
+      # ]) @ (std.array.map
+      #   (fun c => macro.tap kc."%{c}")
+      #   (std.string.characters "POLYCHROMAGAMES.COM"))),
+      # kc.BSPC,
+      cu.BOOT,
+      tap.custom.fak.CWON,
     ],
     L' [
-      XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       cu.PWSP, cu.CT,   cu.CST,  cu.NWSP, XXXX,
+      XXXX,    cu.SELW, XXXX,    XXXX,    XXXX,       cu.PWSP, cu.CST,  cu.CT,   cu.NWSP, XXXX,
       md.lgui, md.lalt, md.lctl, md.lsft, cu.SCSH,    kc.LEFT, kc.DOWN, kc.UP,   kc.RGHT, XXXX,
-      XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       kc.HOME, kc.PGDN, kc.PGUP, kc.END,  XXXX,
-                                 XXXX,    kc.ENT,     XXXX,    XXXX,
+      XXXX,    MO 2,    XXXX,    XXXX,    XXXX,       kc.HOME, kc.PGDN, kc.PGUP, kc.END,  XXXX,
+                        MO 3,    kc.ENT,  XXXX,       XXXX,    XXXX,    XXXX,
     ],
     layer_media,
     L' [
-      XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       XXXX,    kc.N7,   kc.N8,   kc.N9,   XXXX,
-      XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       XXXX,    kc.N4,   kc.N5,   kc.N6,   XXXX,
-      XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       XXXX,    kc.N1,   kc.N2,   kc.N3,   XXXX,
-                                 XXXX,    XXXX,       kc.N0,   kc.".",
+      XXXX,    kc.N9,   kc.N8,   kc.N7,   XXXX,       XXXX,    kc.N7,   kc.N8,   kc.N9,   XXXX,
+      XXXX,    kc.N6,   kc.N5,   kc.N4,   XXXX,       XXXX,    kc.N4,   kc.N5,   kc.N6,   XXXX,
+      XXXX,    kc.N3,   kc.N2,   kc.N1,   XXXX,       XXXX,    kc.N1,   kc.N2,   kc.N3,   XXXX,
+                        XXXX,    XXXX,    XXXX,       XXXX,    kc.N0,   kc.".",
     ],
     L' [
       XXXX,    XXXX,    XXXX,    kc.F11,  XXXX,       XXXX,    kc.F12,  XXXX,    XXXX,    XXXX,
@@ -178,7 +227,12 @@ let keymap = {
       ks.DQUO, kc.LBRC, ks.LCBR, ks.LPRN, ks.LABK,    kc.GRV,  ks.UNDS, kc.EQL,  ks.COLN, kc.QUOT,
       kc.BSLS, kc.RBRC, ks.RCBR, ks.RPRN, ks.RABK,    ks.QUES, ks.PLUS, kc.SCLN, ks.EXLM, kc.MINS,
     ],
+    L' [
+      XXXX,    XXXX,    ms.UP,   XXXX,    XXXX,       XXXX,    XXXX,    XXXX,    XXXX,    XXXX,
+      XXXX,    ms.LEFT, ms.DOWN, ms.RGHT, XXXX,       XXXX,    ms.WH_D, ms.WH_U, XXXX,    XXXX,
+      XXXX,    XXXX,    XXXX,    XXXX,    XXXX,       XXXX,    XXXX,    XXXX,    XXXX,    XXXX,
+                        XXXX,    ms.BTN1, ms.BTN2,    XXXX,    XXXX,    XXXX,
+    ],
+    L' [ms.DOWN]
   ]
-} in
-
-keymap
+}

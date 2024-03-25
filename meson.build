@@ -73,6 +73,11 @@ foreach side : sides
         endif
     elif side == 'peripheral'
         sources += sources_peripheral
+
+        extra_periph_sources = get_option('extra_periph_sources').strip()
+        if extra_periph_sources != ''
+            sources += extra_periph_sources.split(',')
+        endif
     endif
 
     rel = compiler.process(sources)

@@ -1,7 +1,29 @@
 let util = import "util_functions.ncl" in
 let { Set, Uint8, Uint16, Uint32, .. } = import "util_types.ncl" in
+let { tap, hold, .. } = import "keycode.ncl" in
 
 fun kb km side =>
+
+let virtual_keys_of_type = fun t =>
+  km.virtual_keys
+  |> std.array.filter (fun { type, .. } => type == t)
+in
+
+let combos = virtual_keys_of_type 'combo in
+let combo_count = std.array.length combos in
+
+let soft_serial_pin = if side == 'self then -1 else
+  if (std.is_number kb.split.channel) then kb.split.channel else -1
+in
+
+# We can assume all encoders in `kb` are used, as preprocessed by `main.ncl`
+let encoder_count = std.array.length kb.encoders in
+
+let physical_key_count = std.array.length kb.keys in
+let virtual_key_count = std.array.length km.virtual_keys in
+let key_count = physical_key_count + virtual_key_count in
+
+let virtual_key_idx_start = physical_key_count in
 
 let keycodes = std.array.flatten km.layers in
 let layer_count = std.array.length km.layers in
@@ -27,14 +49,10 @@ let deep_keycodes = std.array.flat_map (fun kc => match {
   'tap_dance => kc.data.bindings
 } kc.type) keycodes in
 
-let combos = km.virtual_keys
-  |> std.array.filter (fun { type, .. } => type == 'combo)
-in
-
-let combo_count = std.array.length combos in
-
 let features_used =
-  if side == 'self then [] else [kb.split.channel]
+  if side == 'self then [] else 
+    [kb.split.channel]
+    |> std.array.filter (fun e => std.is_record e)
 in
 
 let feature_pins_used = features_used
@@ -43,6 +61,11 @@ in
 
 let feature_keys_used | Set String = features_used
   |> std.array.flat_map (fun feature => feature.keys)
+in
+
+let encoder_pins_used = kb.encoders
+  |> std.array.filter ( fun { type, .. } => type == 'physical)
+  |> std.array.flat_map (fun { data, .. } => [data.pin_a, data.pin_b])
 in
 
 let _hold_tap_behaviors =
@@ -219,7 +242,7 @@ let _macro_steps =
 in
 
 let _central_defines = {
-  KEY_COUNT = std.array.length kb.keys + std.array.length km.virtual_keys,
+  KEY_COUNT = key_count,
   LAYER_COUNT = layer_count,
   DEBOUNCE_MS = kb.debounce_ms,
 
@@ -264,6 +287,8 @@ let _central_defines = {
   COMBO_COUNT = combo_count,
   COMBO_REQUIRE_PRIOR_IDLE_MS_ENABLE = combos
     |> std.array.any (fun c => c.data.require_prior_idle_ms > 0),
+  
+  ENCODER_COUNT = encoder_count,
 
   USB_NUM_INTERFACES = [true, CONSUMER_KEYS_ENABLE, MOUSE_KEYS_ENABLE]
     |> std.array.filter ((==) true)
@@ -292,7 +317,6 @@ let _central_defines = {
   COMBO_MAX_KEY_COUNT = combos
     |> std.array.map (fun c => std.array.length c.data.key_indices)
     |> util.array.max,
-  COMBO_KEY_IDX_START = std.array.length kb.keys,
 } in
 
 let _xaddr_sizes = let
@@ -353,6 +377,12 @@ in {
     COMBO_KEY_QUEUE = sizeof.uint8_t + (sizeof.fak_combo_key_queue_entry_t * _central_defines.COMBO_KEY_QUEUE_LEN),
   }
 )
+& util.record.only_if (encoder_count > 0) (
+  {
+    ENCODER_STEPS = sizeof.int8_t * encoder_count,
+    ENCODER_LAST_NUM = sizeof.uint8_t * std.number.floor ((encoder_count + 3) / 4),
+  }
+)
 & util.record.only_if _central_defines.STICKY_ENABLE {
   PENDING_STICKY_MODS = sizeof.uint8_t,
   APPLIED_STICKY_MODS = sizeof.uint8_t,
@@ -402,6 +432,15 @@ let _defines = {
   SPLIT_PERIPH_KEY_COUNT =
     (if side == 'central then kb.split.peripheral else kb).keys
     |> std.array.length,
+  SPLIT_PERIPH_ENCODER_COUNT =
+    let expected_type = if side == 'central then 'peripheral else 'physical in
+    kb.encoders
+    |> std.array.filter (fun { type, .. } => type == expected_type)
+    |> std.array.length,
+} & util.record.only_if (soft_serial_pin >= 0) {
+  SPLIT_SOFT_SERIAL_PIN =
+    let p = soft_serial_pin in
+    "P%{std.to_string (std.number.floor (p / 10))}.%{std.to_string (p % 10)}",
 } & util.record.only_if (side != 'peripheral) (
   _central_defines & _xaddr_defines
 )
@@ -422,9 +461,10 @@ let encode_hold_tap_behavior = fun b => {
   global_quick_tap_ms = b.global_quick_tap_ms
 } in
 
-let encode_combo = fun combo => {
+let encode_combo = fun combo key_idx => {
   timeout_ms = combo.timeout_ms,
   key_indices = combo.key_indices,
+  key_idx_mapping = key_idx,
   flags =
     std.array.length combo.key_indices - 2
     + util.bit.shift (if combo.slow_release then 1 else 0) 3,
@@ -433,7 +473,9 @@ let encode_combo = fun combo => {
 } in
 
 let Kscan = std.contract.from_predicate (fun k =>
-  let all_used_pins = k.ins @ k.cols @ k.rows @ feature_pins_used in
+  let all_used_pins = k.ins @ k.cols @ k.rows @ encoder_pins_used @ feature_pins_used
+    # Include soft serial pin
+    @ (if soft_serial_pin >= 0 then [soft_serial_pin] else []) in
   (util.array.unique all_used_pins) == all_used_pins
 ) in
 
@@ -496,6 +538,7 @@ let rec _kscan | Kscan =
 {
   defines = _defines,
   kscan = _kscan,
+  "%{"side"}" = side,
 
   key_map = if side == 'peripheral then [] else
     std.array.map (fun layer => std.array.map encode_kc layer) km.layers,
@@ -507,7 +550,30 @@ let rec _kscan | Kscan =
     std.array.map encode_kc (std.array.flatten _tap_dance_bindings),
   
   combo_defs = if side == 'peripheral then [] else
-    std.array.map (fun c => encode_combo c.data) combos,
+    std.array.map (fun c => encode_combo
+      c.data
+      (virtual_key_idx_start + util.array.index_of c km.virtual_keys)
+    ) combos,
+  
+  encoder_defs = kb.encoders
+    |> util.array.enumerate
+    |> std.array.map (fun { index, value } => 
+        let type = value.type in
+        let data = value.data in
+        let find_key_idx = fun dir =>
+          let vk = { type = 'encoder, data = { "%{"index"}" = index, direction = dir } } in
+          let i = util.array.index_of_or_n1 vk km.virtual_keys in
+          if i < 0 then 0 else (virtual_key_idx_start + i)
+        in
+        {
+          resolution = (if type == 'peripheral then (std.array.at data kb.split.peripheral.encoders).data else data).resolution,
+          key_idx_cw = find_key_idx 'cw,
+          key_idx_ccw = find_key_idx 'ccw,
+        } & util.record.only_if (type == 'physical) {
+          pin_a = data.pin_a,
+          pin_b = data.pin_b,
+        }
+    ),
 
   macro_steps = if side =='peripheral then [] else _macro_steps,
   macro_step_args = if side =='peripheral then [] else _macro_step_args,
@@ -528,5 +594,12 @@ let rec _kscan | Kscan =
       kb.keys
       |> util.array.enumerate
       |> std.array.filter (fun { index, value } => value.type == 'peripheral)
-      |> std.array.map (fun { index, value } => index)
+      |> std.array.map (fun { index, value } => index),
+
+  split_periph_encoder_indices =
+    if side != 'central then [] else
+      kb.encoders
+      |> util.array.enumerate
+      |> std.array.filter (fun { index, value } => value.type == 'peripheral)
+      |> std.array.map (fun { index, value } => index),
 }
