@@ -10,7 +10,7 @@
     "ghcr.io/devcontainers/features/nix:1": {
       "multiUser": true,
       "version": "latest",
-      "extraNixConfig": "experimental-features = nix-command flakes,keep-outputs = true,keep-derivations = true"
+      "extraNixConfig": "trusted-users = vscode,extra-substituters = https://tweag-nickel.cachix.org,extra-trusted-public-keys = tweag-nickel.cachix.org-1:GIthuiK4LRgnW64ALYEoioVUQBWs0jexyoYVeLDBwRA=,experimental-features = nix-command flakes,keep-outputs = true,keep-derivations = true"
     }
   },
   
@@ -20,9 +20,9 @@
 
   "mounts": [
     "source=nix-store,target=/nix,type=volume",
-    // "source=nix-direnv,target=/home/vscode/.local/share/direnv,type=volume",
+    // "source=nix-direnv,target=/home/vscode/.local/share/direnv,type=volume"
     // "source=vs-exts,target=/home/vscode/.vscode-server/extensions,type=volume",
-    "source=vs-exts-in,target=/home/vscode/.vscode-server-insiders/extensions,type=volume"
+    // "source=vs-exts-in,target=/home/vscode/.vscode-server-insiders/extensions,type=volume"
   ],
   
 	// Configure tool-specific properties.
@@ -44,8 +44,8 @@
     // "Allow direnv": "mkdir -p ~/.config/direnv; touch ~/.config/direnv/direnv.toml; echo \"[whitelist]\nprefix = ['/workspaces/']\" >> ~/.config/direnv/direnv.toml"
     "Install compilation environment": "sudo apt-get update && sudo apt-get install -y bison build-essential curl flex gputils libboost-dev texinfo zlib1g-dev",
     "Install sdcc": "sudo mkdir -p /usr/src/sdcc; cd /usr/src/sdcc; wget -c https://sourceforge.net/projects/sdcc/files/sdcc/${SDCC_VERSION}/sdcc-src-${SDCC_VERSION}.tar.bz2/download -O - | sudo tar xj --strip-components=1 -C /usr/src/sdcc && sudo ./configure --prefix=/usr && sudo make && sudo make install && cd && sudo rm -rf /usr/src/sdcc",
-    "Install nickel": "nix profile install github:tweag/nickel/stable"
-  },
+    "Install nickel": "echo -e 'y\ny\ny\ny\n' | nix profile install github:tweag/nickel/stable"
+    },
   
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [9000],
